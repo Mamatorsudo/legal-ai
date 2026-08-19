@@ -4,14 +4,15 @@ from google import genai
 from google.genai import types
 from dotenv import load_dotenv
 
-# Load API key from environment
+# Load API key from environment or Streamlit secrets
 load_dotenv()
-api_key = os.getenv("GEMINI_API_KEY")
+api_key = os.getenv("GEMINI_API_KEY") or st.secrets.get("GEMINI_API_KEY")
 
 if not api_key:
-    st.error("Missing GEMINI_API_KEY. Please add it to your .env file.")
+    st.error("Missing GEMINI_API_KEY. Please add it to your .env file or Streamlit Secrets.")
     st.stop()
 
+# Initialize Gemini client
 client = genai.Client(api_key=api_key)
 
 # Page Configuration
@@ -45,29 +46,32 @@ if prompt := st.chat_input("Ask a legal or judicial question..."):
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # Generate AI Response
+    # Generate AI Response with Streaming (Fast Response)
     with st.chat_message("assistant"):
-        with st.spinner("Analyzing legal principles..."):
-            try:
-                # Format full context for multi-turn conversation
-                contents = [
-                    types.Content(
-                        role=m["role"],
-                        parts=[types.Part.from_text(text=m["content"])]
-                    ) for m in st.session_state.messages
-                ]
+        try:
+            # Build conversation history
+            contents = [
+                types.Content(
+                    role=m["role"],
+                    parts=[types.Part.from_text(text=m["content"])]
+                ) for m in st.session_state.messages
+            ]
 
-                response = client.models.generate_content(
-                    model="gemini-3.6-flash",
-                    contents=contents,
-                    config=types.GenerateContentConfig(
-                        system_instruction=SYSTEM_INSTRUCTION,
-                        temperature=0.2,
-                    )
+            # Stream response chunks directly as they arrive
+            response_stream = client.models.generate_content_stream(
+                model="gemini-2.5-flash",
+                contents=contents,
+                config=types.GenerateContentConfig(
+                    system_instruction=SYSTEM_INSTRUCTION,
+                    temperature=0.2,
                 )
+            )
 
-                st.markdown(response.text)
-                st.session_state.messages.append({"role": "assistant", "content": response.text})
+            # Render text in real time
+            full_response = st.write_stream(chunk.text for chunk in response_stream)
 
-            except Exception as e:
-                st.error(f"Error generating response: {e}")
+            # Save assistant response to memory
+            st.session_state.messages.append({"role": "assistant", "content": full_response})
+
+        except Exception as e:
+            st.error(f"Error generating response: {e}")
