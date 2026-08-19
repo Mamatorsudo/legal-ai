@@ -59,7 +59,7 @@ if prompt := st.chat_input("Ask a legal or judicial question..."):
 
             # Stream response chunks directly as they arrive
             response_stream = client.models.generate_content_stream(
-                model="gemini-2.5-flash",
+                model="gemini-3.6-flash",
                 contents=contents,
                 config=types.GenerateContentConfig(
                     system_instruction=SYSTEM_INSTRUCTION,
